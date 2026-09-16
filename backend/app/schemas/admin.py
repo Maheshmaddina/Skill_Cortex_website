@@ -37,6 +37,7 @@ class PaymentStats(BaseModel):
     pending: int
     failed: int
     refunded: int
+    upi_awaiting_verification: int
 
 
 class RevenueStats(BaseModel):

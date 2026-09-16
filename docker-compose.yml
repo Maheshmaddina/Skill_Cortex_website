@@ -10,6 +10,8 @@ x-backend-env: &backend-env
   RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
   RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
   RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+  UPI_ID: ${UPI_ID:-}
+  UPI_PAYEE_NAME: ${UPI_PAYEE_NAME:-Skill Cortex}
   # Notifications: console providers just log; switch to smtp / msg91 via the root .env
   EMAIL_PROVIDER: ${EMAIL_PROVIDER:-console}
   SMS_PROVIDER: ${SMS_PROVIDER:-console}

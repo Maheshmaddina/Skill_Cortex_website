@@ -19,7 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
-from app.models import Booking, BookingStatus, Payment, PaymentEvent, PaymentStatus, User
+from app.models import Booking, BookingStatus, Payment, PaymentEvent, PaymentMethod, PaymentStatus, User
 from app.services.bookings import BookingNotFound, has_other_live_booking, hold_seat
 from app.services.errors import Conflict, NotFound, ServiceError
 from app.services.notifications import notify_booking_confirmed, notify_payment_refunded
@@ -64,6 +64,10 @@ class InvalidPaymentSignature(ServiceError):
     message = "Payment could not be verified. If money was deducted, it will be confirmed or refunded automatically."
 
 
+class UpiPaymentUnderReview(Conflict):
+    message = "Your UPI payment is being verified. We'll confirm your booking shortly."
+
+
 class PaymentNotFound(NotFound):
     message = "Payment not found."
 
@@ -96,6 +100,8 @@ def create_checkout_order(db: Session, user: User, booking_id: UUID, gateway: Pa
     payment = db.scalar(
         select(Payment).where(Payment.booking_id == booking.id, Payment.status == PaymentStatus.PENDING)
     )
+    if payment is not None and payment.method == PaymentMethod.UPI:
+        raise UpiPaymentUnderReview
     if payment is None:
         order = gateway.create_order(
             amount_paise=booking.amount_paise,
@@ -258,7 +264,9 @@ def confirm_payment(
 
 def refund_payment(db: Session, payment: Payment, booking: Booking, gateway: PaymentGateway, *, reason: str) -> None:
     """Refund in full via Razorpay, then record it. The gateway call comes first, so a gateway
-    failure raises before anything is changed."""
+    failure raises before anything is changed. Direct UPI payments are refunded by hand."""
+    if payment.method == PaymentMethod.UPI and payment.amount_paise > 0:
+        reason = f"{reason} Refund it manually via UPI (UTR {payment.upi_reference})."
     if payment.amount_paise > 0 and payment.razorpay_payment_id:
         payment.razorpay_refund_id = gateway.refund_payment(
             payment_id=payment.razorpay_payment_id,
@@ -290,8 +298,11 @@ def list_payments(
     offset: int,
     limit: int,
     user_id: UUID | None = None,
+    method: PaymentMethod | None = None,
 ) -> tuple[list[Payment], int]:
     query = select(Payment).join(Payment.booking).join(Booking.user)
+    if method is not None:
+        query = query.where(Payment.method == method)
     if status is not None:
         query = query.where(Payment.status == status)
     if booking_id is not None:
@@ -304,6 +315,7 @@ def list_payments(
             or_(
                 Payment.razorpay_order_id.ilike(pattern, escape=LIKE_ESCAPE),
                 Payment.razorpay_payment_id.ilike(pattern, escape=LIKE_ESCAPE),
+                Payment.upi_reference.ilike(pattern, escape=LIKE_ESCAPE),
                 Booking.reference.ilike(pattern, escape=LIKE_ESCAPE),
                 User.email.ilike(pattern, escape=LIKE_ESCAPE),
                 User.name.ilike(pattern, escape=LIKE_ESCAPE),

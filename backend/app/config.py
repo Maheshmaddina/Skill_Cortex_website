@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     razorpay_webhook_secret: str = ""
     razorpay_api_base: str = "https://api.razorpay.com/v1"
 
+    # Direct UPI (QR code / UPI ID): learners pay this UPI ID and submit the UTR; an admin verifies it.
+    # Empty hides the option.
+    upi_id: str = ""
+    upi_payee_name: str = "Skill Cortex"
+
     # Notifications (decision D12). "console" providers only log — use them in development.
     email_provider: Literal["console", "smtp"] = "console"
     sms_provider: Literal["console", "msg91"] = "console"

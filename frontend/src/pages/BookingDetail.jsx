@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 
+import UpiPayment from "../components/UpiPayment.jsx";
 import { Alert, Button, Card, QueryState, StatusBadge } from "../components/ui.jsx";
 import { ApiError, api } from "../lib/api.js";
 import { formatCountdown, formatDate, formatDuration, formatINR, formatTimeRange } from "../lib/format.js";
@@ -82,14 +83,16 @@ export default function BookingDetail() {
 function BookingView({ booking, notice, pay, cancel, onExpired }) {
   const now = useNow();
   const remaining = booking.expires_at ? new Date(booking.expires_at).getTime() - now : 0;
-  const holdActive = booking.status === "PENDING" && remaining > 0;
+  const upiUnderReview = booking.status === "PENDING" && booking.upi_payment?.status === "PENDING";
+  const holdActive = booking.status === "PENDING" && remaining > 0 && !upiUnderReview;
+  const upiRejected = holdActive && booking.upi_payment?.status === "FAILED";
 
   useEffect(() => {
     if (booking.status === "PENDING" && booking.expires_at && remaining <= 0) onExpired();
   }, [booking.status, booking.expires_at, remaining <= 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const heading = {
-    PENDING: holdActive ? "Review your booking" : "Payment window closed",
+    PENDING: upiUnderReview ? "Verifying your payment" : holdActive ? "Review your booking" : "Payment window closed",
     CONFIRMED: "Booking confirmed",
     COMPLETED: "Session completed",
     CANCELLED: "Booking cancelled",
@@ -120,6 +123,14 @@ function BookingView({ booking, notice, pay, cancel, onExpired }) {
         </Alert>
       )}
 
+      {upiUnderReview && (
+        <Alert kind="info" className="mt-4" title="We've received your UPI payment details">
+          UPI transaction ID <strong className="font-mono">{booking.upi_payment.upi_reference}</strong>. Your seat is held
+          while we check the payment — usually within a few hours. You'll get a confirmation by email and SMS as soon as
+          it's verified.
+        </Alert>
+      )}
+
       <dl className="mt-6 divide-y divide-slate-100 text-sm">
         <Row label="Webinar">{booking.webinar.title}</Row>
         <Row label="Date">{formatDate(booking.slot.start_at)}</Row>
@@ -139,6 +150,13 @@ function BookingView({ booking, notice, pay, cancel, onExpired }) {
             Your seat is held for <strong className="tabular-nums">{formatCountdown(remaining)}</strong>. Complete the
             payment before then to confirm your booking.
           </Alert>
+          {upiRejected && (
+            <Alert kind="error" className="mt-3" title="We couldn't verify your UPI payment">
+              UPI transaction ID {booking.upi_payment.upi_reference}: {booking.upi_payment.failure_reason} Please check
+              the ID in your UPI app and submit it again.
+            </Alert>
+          )}
+          <UpiPayment booking={booking} />
           {pay.error instanceof CheckoutDismissed && (
             <Alert kind="info" className="mt-3">
               Payment was not completed. You can try again while your seat is held.
@@ -156,7 +174,7 @@ function BookingView({ booking, notice, pay, cancel, onExpired }) {
           )}
           <div className="mt-6 flex flex-col gap-3 sm:flex-row-reverse">
             <Button size="lg" className="sm:flex-1" loading={pay.isPending} onClick={() => pay.mutate()}>
-              Proceed to Payment · {formatINR(booking.amount_paise)}
+              Pay by card / netbanking · {formatINR(booking.amount_paise)}
             </Button>
             <Button
               size="lg"
@@ -171,7 +189,7 @@ function BookingView({ booking, notice, pay, cancel, onExpired }) {
         </>
       )}
 
-      {["EXPIRED", "CANCELLED", "FAILED"].includes(booking.status) || (booking.status === "PENDING" && !holdActive) ? (
+      {["EXPIRED", "CANCELLED", "FAILED"].includes(booking.status) || (booking.status === "PENDING" && !holdActive && !upiUnderReview) ? (
         <div className="mt-6">
           <p className="text-sm text-slate-600">
             {booking.payment_status === "REFUNDED"

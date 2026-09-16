@@ -6,7 +6,7 @@ from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, Se
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.enums import BookingStatus, PaymentStatus, pg_enum
+from app.models.enums import BookingStatus, PaymentMethod, PaymentStatus, pg_enum
 from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
@@ -56,6 +56,13 @@ class Booking(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     webinar: Mapped["Webinar"] = relationship()
     slot: Mapped["Slot"] = relationship(back_populates="bookings")
     payments: Mapped[list["Payment"]] = relationship(back_populates="booking")
+
+    @property
+    def upi_payment(self) -> "Payment | None":
+        """The direct-UPI payment attempt to show: the active one (pending or paid), else the latest."""
+        upi = [payment for payment in self.payments if payment.method == PaymentMethod.UPI]
+        active = (PaymentStatus.PENDING, PaymentStatus.PAID)
+        return max(upi, key=lambda payment: (payment.status in active, payment.created_at)) if upi else None
 
     @property
     def payment_status(self) -> PaymentStatus | None:

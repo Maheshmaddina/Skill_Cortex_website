@@ -122,6 +122,13 @@ Rules:
 
 Admin: `GET /admin/payments?status=&booking_id=&q=` · `GET /admin/payments/{id}` · `POST /admin/bookings/{id}/cancel` (refunds a paid booking, releases the seat) · `POST /admin/slots/{id}/cancel` (cancels the session, cancels every live booking and refunds paid ones; safe to re-run if a refund fails).
 
+## Direct UPI payments (QR code / UPI ID)
+
+For when the gateway's UPI isn't enabled. Set `UPI_ID` (e.g. `skillcortex@okaxis`) and optionally `UPI_PAYEE_NAME`; empty `UPI_ID` hides the option.
+- The booking page shows a QR code (`upi://pay` link with amount and booking reference) and the UPI ID. After paying, the learner submits the 12-digit UTR: `GET /payments/upi?booking_id=` · `POST /payments/upi {booking_id, utr}`.
+- The booking stays `PENDING` with its seat held until the session starts; the learner can't cancel or start a card payment meanwhile. A UTR can be used once.
+- Admin → Payments → **UPI payments to verify**: check the money arrived, then `POST /admin/payments/{id}/confirm-upi` (booking `CONFIRMED`, notifications sent) or `POST /admin/payments/{id}/reject-upi {reason}` (learner gets 30 minutes to correct the UTR). Cancelling a confirmed UPI booking marks the payment refunded — send the refund by UPI yourself.
+
 ## Notifications (email / SMS)
 
 Every message is first stored as a `PENDING` row in `notifications`, in the same transaction as the event that caused it — so a confirmed payment can never lose its confirmation. Delivery happens right after the API response, and the scheduler retries anything left over every minute. A failed delivery is retried after 5, then 10 minutes and marked `FAILED` after `NOTIFICATION_MAX_ATTEMPTS` (3); the booking is never affected.

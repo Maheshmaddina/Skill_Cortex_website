@@ -46,6 +46,11 @@ class PaymentStatus(StrEnum):
     REFUNDED = "REFUNDED"
 
 
+class PaymentMethod(StrEnum):
+    RAZORPAY = "RAZORPAY"  # verified automatically (signature / webhook)
+    UPI = "UPI"  # direct UPI to the business account; an admin verifies the UTR
+
+
 class NotificationType(StrEnum):
     REGISTRATION = "REGISTRATION"
     BOOKING_CONFIRMATION = "BOOKING_CONFIRMATION"

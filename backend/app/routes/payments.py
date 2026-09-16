@@ -1,4 +1,5 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Header, Request
 from fastapi.concurrency import run_in_threadpool
@@ -11,11 +12,14 @@ from app.schemas.payment import (
     CheckoutPrefill,
     CreateOrderRequest,
     PaymentResult,
+    SubmitUpiPaymentRequest,
+    UpiPaymentDetails,
     VerifyPaymentRequest,
     WebhookAck,
 )
 from app.services import payments as payment_service
 from app.services import rate_limit
+from app.services import upi_payments
 from app.services.payments import OUTCOME_MESSAGES, PaymentOutcome
 from app.services.razorpay import PaymentGateway
 
@@ -66,6 +70,23 @@ def verify_payment(
     background_tasks.add_task(notifier.dispatch_pending)
     db.refresh(booking)
     return PaymentResult(outcome=outcome, message=OUTCOME_MESSAGES[outcome], booking=BookingOut.model_validate(booking))
+
+
+@router.get("/upi", response_model=UpiPaymentDetails)
+def upi_payment_details(booking_id: UUID, user: CurrentUser, db: DbSession) -> UpiPaymentDetails:
+    """UPI ID and upi://pay link (for the QR code) to pay an unpaid booking directly by UPI."""
+    details = upi_payments.upi_details(db, user, booking_id)
+    return UpiPaymentDetails(**details.__dict__)
+
+
+@router.post("/upi", response_model=BookingOut)
+def submit_upi_payment(payload: SubmitUpiPaymentRequest, user: CurrentUser, db: DbSession):
+    """The learner paid by UPI and sends the UTR. The booking is confirmed only after an admin verifies it."""
+    rate_limit.hit(rate_limit.PAYMENTS_PER_USER, str(user.id))
+    booking = upi_payments.submit_upi_payment(db, user, payload.booking_id, payload.utr)
+    db.commit()
+    db.refresh(booking)
+    return BookingOut.model_validate(booking)
 
 
 @router.post("/webhook", response_model=WebhookAck)

@@ -38,7 +38,12 @@ export default function AdminDashboard() {
               <Stat label="Total bookings" value={s.bookings.total} detail={`${s.bookings.confirmed} confirmed · ${s.bookings.pending} awaiting payment`} to="/admin/bookings" />
               <Stat label="Revenue" value={formatINR(s.revenue.total_paise) === "Free" ? "₹0" : formatINR(s.revenue.total_paise)} detail={`${formatINR(s.revenue.last_30_days_paise) === "Free" ? "₹0" : formatINR(s.revenue.last_30_days_paise)} in the last 30 days`} to="/admin/payments?status=PAID" />
               <Stat label="Successful payments" value={s.payments.successful} detail={`${s.payments.refunded} refunded`} to="/admin/payments?status=PAID" />
-              <Stat label="Pending payments" value={s.payments.pending} to="/admin/payments?status=PENDING" />
+              <Stat
+                label="UPI payments to verify"
+                value={s.payments.upi_awaiting_verification}
+                detail={`${s.payments.pending} pending payments in total`}
+                to="/admin/payments?method=UPI&status=PENDING"
+              />
               <Stat label="Failed payments" value={s.payments.failed} detail={`${s.notifications.failed} failed notifications`} to="/admin/payments?status=FAILED" />
             </div>
 

@@ -36,6 +36,15 @@ class BookingSlot(BaseModel):
     end_at: datetime
 
 
+class BookingUpiPayment(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    upi_reference: str
+    status: PaymentStatus
+    failure_reason: str | None
+    created_at: datetime
+
+
 class BookingOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -50,6 +59,7 @@ class BookingOut(BaseModel):
     created_at: datetime
     webinar: BookingWebinar
     slot: BookingSlot
+    upi_payment: BookingUpiPayment | None = None  # latest direct-UPI attempt, if any
 
 
 class BookingUser(BaseModel):

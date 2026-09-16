@@ -12,6 +12,7 @@ from app.models import (
     Notification,
     NotificationStatus,
     Payment,
+    PaymentMethod,
     PaymentStatus,
     RecordStatus,
     Slot,
@@ -64,6 +65,9 @@ def dashboard_stats(db: Session, now: datetime | None = None) -> dict[str, Any]:
             "pending": payments_by_status.get(PaymentStatus.PENDING, 0),
             "failed": payments_by_status.get(PaymentStatus.FAILED, 0),
             "refunded": payments_by_status.get(PaymentStatus.REFUNDED, 0),
+            "upi_awaiting_verification": count(
+                Payment, Payment.method == PaymentMethod.UPI, Payment.status == PaymentStatus.PENDING
+            ),
         },
         "revenue": {
             "total_paise": scalar(paid_total),

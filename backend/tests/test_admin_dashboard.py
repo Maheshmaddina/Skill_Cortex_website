@@ -78,7 +78,7 @@ def test_dashboard_stats(client: TestClient, db: Session, admin_headers: dict, l
         "cancelled": 1,
         "completed": 1,
     }
-    assert stats["payments"] == {"successful": 2, "pending": 1, "failed": 1, "refunded": 1}
+    assert stats["payments"] == {"successful": 2, "pending": 1, "failed": 1, "refunded": 1, "upi_awaiting_verification": 0}
     assert stats["revenue"] == {"total_paise": 99_900 + 149_900, "last_30_days_paise": 99_900}
     assert stats["notifications"] == {"pending": 2, "failed": 1}
     assert [

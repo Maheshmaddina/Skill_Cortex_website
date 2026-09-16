@@ -20,6 +20,7 @@ from app.models import (
     Booking,
     BookingStatus,
     Payment,
+    PaymentMethod,
     PaymentStatus,
     RecordStatus,
     Slot,
@@ -132,6 +133,17 @@ def cancel_unpaid_booking(db: Session, user: User, booking_id: UUID) -> Booking:
         raise BookingNotFound
     if booking.status != BookingStatus.PENDING:
         raise BookingNotCancellable
+    upi_under_review = db.scalar(
+        select(Payment.id).where(
+            Payment.booking_id == booking.id,
+            Payment.method == PaymentMethod.UPI,
+            Payment.status == PaymentStatus.PENDING,
+        )
+    )
+    if upi_under_review is not None:
+        raise BookingNotCancellable(
+            "Your UPI payment is being verified, so this booking can't be cancelled. Please contact us if you need help."
+        )
     release_hold(db, booking, BookingStatus.CANCELLED, "Booking cancelled by the learner.", datetime.now(UTC))
     db.flush()
     return booking

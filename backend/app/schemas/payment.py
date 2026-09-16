@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
-from app.models import BookingStatus, PaymentStatus
+from app.models import BookingStatus, PaymentMethod, PaymentStatus
 from app.schemas.booking import BookingOut, BookingUser, BookingWebinar
 from app.schemas.slot import SlotAdminOut
 from app.services.payments import PaymentOutcome
@@ -69,7 +69,9 @@ class PaymentAdminOut(BaseModel):
     amount_paise: int
     currency: str
     status: PaymentStatus
-    razorpay_order_id: str
+    method: PaymentMethod
+    upi_reference: str | None
+    razorpay_order_id: str | None
     razorpay_payment_id: str | None
     razorpay_refund_id: str | None
     failure_reason: str | None
@@ -77,6 +79,25 @@ class PaymentAdminOut(BaseModel):
     refunded_at: datetime | None
     created_at: datetime
     booking: PaymentBooking
+
+
+class UpiPaymentDetails(BaseModel):
+    """What the booking page needs to show the UPI QR code and ID."""
+
+    upi_id: str
+    payee_name: str
+    amount_paise: int
+    booking_reference: str
+    upi_uri: str
+
+
+class SubmitUpiPaymentRequest(BaseModel):
+    booking_id: UUID
+    utr: Annotated[str, StringConstraints(min_length=1, max_length=32)]
+
+
+class RejectUpiPaymentRequest(BaseModel):
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]
 
 
 class SlotCancellationResult(BaseModel):
