@@ -1,0 +1,85 @@
+# Production stack — see deploy/DEPLOY.md.
+#   docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+name: skill-cortex
+
+x-backend: &backend
+  build: { context: ./backend, target: prod }
+  image: skill-cortex-backend:latest
+  env_file: ${ENV_FILE:-.env.production}
+  environment:
+    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-skill_cortex}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-skill_cortex}
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-skill_cortex}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-skill_cortex}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # No published port: only the app containers can reach the database.
+
+  # Runs once per deploy: apply migrations and the idempotent seed, then exit.
+  migrate:
+    <<: *backend
+    restart: "no"
+    command: sh -c "alembic upgrade head && python -m app.scripts.seed"
+    healthcheck: { disable: true }
+    depends_on:
+      db: { condition: service_healthy }
+
+  backend:
+    <<: *backend
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+  # Exactly one scheduler: hold expiry, notifications, reminders, completion, rate-limit cleanup.
+  scheduler:
+    <<: *backend
+    command: python -m app.scheduler
+    healthcheck: { disable: true }
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: /api
+        VITE_CONTACT_EMAIL: ${CONTACT_EMAIL:-info@skillcortexai.com}
+    image: skill-cortex-frontend:latest
+    restart: unless-stopped
+
+  # TLS termination (automatic Let's Encrypt certificates) and routing.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

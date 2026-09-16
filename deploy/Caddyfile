@@ -1,0 +1,33 @@
+{
+	# Let's Encrypt account email (certificate expiry notices).
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Hard cap on request bodies (the API also rejects bodies over 1 MB).
+	request_body {
+		max_size 1MB
+	}
+
+	header {
+		?Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	# API: https://DOMAIN/api/... → backend (prefix stripped). Razorpay webhook: /api/payments/webhook
+	handle_path /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# Everything else: the React app.
+	handle {
+		reverse_proxy frontend:80
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
