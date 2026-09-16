@@ -37,7 +37,16 @@ export function openCheckout(order) {
       description: `${order.webinar_title} · ${order.booking_reference}`,
       prefill: order.prefill,
       notes: { booking_reference: order.booking_reference },
-      theme: { color: "#4f46e5" },
+      theme: { color: "#ff6b00" },
+      // UPI first. Razorpay only shows methods enabled on the account: UPI apps on phones need
+      // "UPI intent", a UPI ID / QR code on laptops needs "UPI" (Dashboard → Payment Methods).
+      config: {
+        display: {
+          blocks: { upi: { name: "Pay using UPI", instruments: [{ method: "upi" }] } },
+          sequence: ["block.upi"],
+          preferences: { show_default_blocks: true },
+        },
+      },
       handler: (response) => resolve(response),
       modal: { ondismiss: () => reject(new CheckoutDismissed("Payment was not completed.")) },
     });
