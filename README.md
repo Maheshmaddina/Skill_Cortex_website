@@ -24,6 +24,15 @@ docker compose exec -e ADMIN_PASSWORD='Str0ngPass' backend \
   python -m app.scripts.create_admin --email admin@example.com --name "Skill Cortex Admin" --phone 9876543210
 ```
 
+## Vercel deployment
+
+Live at **https://skill-cortex-website.vercel.app** (Vercel project `skill-cortex-website`, database Neon via the Vercel Marketplace).
+- `vercel.json` builds the React app (`frontend/dist`) and serves the FastAPI app as the Python function `api/index.py` under `/api` (`backend/app/serverless.py` mounts it). Root `requirements.txt` must match `backend/requirements.txt` (a test checks).
+- There is no long-running scheduler on Vercel: `GET /api/internal/run-jobs` (header `Authorization: Bearer $CRON_SECRET`) runs every job once. Vercel Cron calls it daily; `.github/workflows/run-jobs.yml` calls it every 5 minutes once the repository secrets `APP_URL` and `CRON_SECRET` are set.
+- Production env vars (Vercel → Settings → Environment Variables): `APP_ENV=production`, `DATABASE_URL` (from Neon), `DATABASE_POOL=null`, `JWT_SECRET`, `COOKIE_SECURE=true`, `REFRESH_COOKIE_PATH=/api/auth`, `FRONTEND_URL` and `CORS_ORIGINS` (the site URL), `CLIENT_IP_HEADER=x-real-ip`, `CRON_SECRET`; add Razorpay / SMTP / MSG91 values to enable payments and real email/SMS.
+- Migrations and seeding run from a machine with the Neon URL: `DATABASE_URL=<unpooled Neon URL> alembic upgrade head`, then `python -m app.scripts.seed`, `seed_catalog`, `create_admin`.
+- Deploy: `vercel deploy --prod` (or push to `main` once the GitHub repo is connected to the Vercel project).
+
 ## Production deployment
 
 Everything runs on one VPS with Docker Compose: Caddy (automatic HTTPS) → React app (nginx) and API under `/api` (FastAPI), plus the scheduler and PostgreSQL. Full runbook: **[deploy/DEPLOY.md](deploy/DEPLOY.md)**.

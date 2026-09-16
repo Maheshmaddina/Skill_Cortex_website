@@ -1,0 +1,28 @@
+name: Run background jobs
+
+# On Vercel there is no always-on scheduler process, so this calls the API's job endpoint every
+# 5 minutes: releases expired seat holds, withdraws unused learner-set sessions, queues reminders
+# and delivers/retries email + SMS. Needs repository secrets APP_URL (e.g. https://your-app.vercel.app)
+# and CRON_SECRET (same value as the Vercel env var). Vercel Cron also calls it once a day as a backstop.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  run-jobs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Call /api/internal/run-jobs
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "APP_URL / CRON_SECRET secrets are not set; skipping."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error --max-time 90 \
+            -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/internal/run-jobs"

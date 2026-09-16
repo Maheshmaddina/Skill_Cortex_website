@@ -51,8 +51,12 @@ PAYMENTS_PER_USER = Limit("payments:user", 30, timedelta(minutes=10))
 
 
 def client_ip(request: Request) -> str:
-    """The connecting client's address. Behind a reverse proxy, run uvicorn with
-    --proxy-headers --forwarded-allow-ips=<proxy ip> so this is the real client."""
+    """The connecting client's address. Behind a reverse proxy, either run uvicorn with
+    --proxy-headers --forwarded-allow-ips=<proxy ip>, or set CLIENT_IP_HEADER to the header the
+    proxy overwrites with the real client IP (e.g. x-real-ip on Vercel)."""
+    header = get_settings().client_ip_header
+    if header and (forwarded := request.headers.get(header, "").split(",")[0].strip()):
+        return forwarded
     return request.client.host if request.client else "unknown"
 
 

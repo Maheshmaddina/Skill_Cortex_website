@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_JWT_SECRET = "change-me"
@@ -12,6 +12,8 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     database_url: str = "postgresql+psycopg://skill_cortex:skill_cortex@localhost:5432/skill_cortex"
+    # "null" opens a connection per request instead of pooling — for serverless hosts (Vercel) with a pooled Postgres.
+    database_pool: Literal["queue", "null"] = "queue"
     timezone: str = "Asia/Kolkata"
     booking_hold_minutes: int = 15
     frontend_url: str = "http://localhost:5173"
@@ -19,6 +21,8 @@ class Settings(BaseSettings):
 
     # Abuse protection
     rate_limit_enabled: bool = True
+    # Header carrying the real client IP, set by a trusted proxy (e.g. "x-real-ip" on Vercel). Empty = socket address.
+    client_ip_header: str = ""
     max_request_body_bytes: int = 1_000_000
 
     # Auth (decision D11)
@@ -60,6 +64,19 @@ class Settings(BaseSettings):
     admin_notify_emails: str = ""
     admin_notify_phones: str = ""
 
+    # Bearer token for GET/POST /internal/run-jobs, which runs the background jobs on hosts without the
+    # scheduler process (Vercel Cron sends it automatically as CRON_SECRET). Empty disables the endpoint.
+    cron_secret: str = ""
+
+    @field_validator("database_url")
+    @classmethod
+    def _use_psycopg_driver(cls, value: str) -> str:
+        # Hosted Postgres (Neon, Vercel) hands out postgres:// or postgresql:// URLs; this app uses psycopg 3.
+        for prefix in ("postgres://", "postgresql://"):
+            if value.startswith(prefix):
+                return "postgresql+psycopg://" + value.removeprefix(prefix)
+        return value
+
     @property
     def cors_origin_list(self) -> list[str]:
         return _split_csv(self.cors_origins)
@@ -91,6 +108,8 @@ class Settings(BaseSettings):
             problems.append("CORS_ORIGINS must list the real frontend origin, not '*'")
         if not self.rate_limit_enabled:
             problems.append("RATE_LIMIT_ENABLED must be true")
+        if self.cron_secret and len(self.cron_secret) < 32:
+            problems.append("CRON_SECRET must be 32+ characters")
         if problems:
             raise ValueError("Unsafe production configuration: " + "; ".join(problems) + ".")
         return self

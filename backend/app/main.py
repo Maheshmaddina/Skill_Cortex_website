@@ -23,6 +23,7 @@ from app.routes import (
     auth,
     bookings,
     departments,
+    internal,
     notifications,
     payments,
     users,
@@ -49,6 +50,7 @@ ROUTERS = (
     admin_payments,
     admin_notifications,
     admin_reminder_rules,
+    internal,
 )
 
 SECURITY_HEADERS = {

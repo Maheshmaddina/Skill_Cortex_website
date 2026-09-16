@@ -49,3 +49,26 @@ def send_reminders_job() -> None:
     if count:
         logger.info("Queued %d reminder notification(s).", count)
         get_notification_dispatcher().dispatch_pending()
+
+
+def run_due_jobs() -> dict[str, str]:
+    """One pass of every job, for hosts without the long-running scheduler (e.g. Vercel, triggered by a cron).
+
+    Order matters: release holds and withdraw unused sessions before queuing reminders, then deliver.
+    A failing job is logged and reported without stopping the rest.
+    """
+    results: dict[str, str] = {}
+    for name, job in (
+        ("expire_stale_bookings", expire_stale_bookings_job),
+        ("complete_finished_bookings", complete_finished_bookings_job),
+        ("send_reminders", send_reminders_job),
+        ("dispatch_notifications", dispatch_notifications_job),
+        ("purge_rate_limits", purge_rate_limits_job),
+    ):
+        try:
+            job()
+            results[name] = "ok"
+        except Exception:
+            logger.exception("Job %s failed", name)
+            results[name] = "failed"
+    return results

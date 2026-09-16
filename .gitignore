@@ -18,3 +18,10 @@ dist/
 .DS_Store
 .idea/
 .vscode/
+.vercel
+.env*
+
+# Vercel / Neon integration files (local only)
+.agents/
+.claude/
+skills-lock.json
