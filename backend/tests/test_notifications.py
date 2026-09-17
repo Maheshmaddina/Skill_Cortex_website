@@ -240,6 +240,20 @@ def test_failed_password_reset_email_is_not_retried(db: Session, providers: Noti
 # --- viewing & retrying ---------------------------------------------------------
 
 
+def test_paid_confirmation_emails_go_out_with_the_html_receipt(db: Session, providers: NotificationProviders) -> None:
+    booking = queue_paid_confirmation(db)
+
+    dispatch_pending(db, providers)
+
+    emails = {mail["to"]: mail for mail in providers.email.sent}
+    assert set(emails) == {"learner@example.com", "ops@skillcortex.in", "owner@skillcortex.in"}
+    for mail in emails.values():
+        assert "PAYMENT RECEIPT" in mail["text"]
+        assert booking.reference in mail["html"]
+    assert emails["learner@example.com"]["subject"].startswith("Booking confirmed")
+    assert emails["ops@skillcortex.in"]["subject"].startswith("New payment received")
+
+
 def test_learners_see_only_their_own_notifications(client: TestClient, db: Session) -> None:
     learner, other = make_user(db), make_user(db)
     for user in (learner, other):

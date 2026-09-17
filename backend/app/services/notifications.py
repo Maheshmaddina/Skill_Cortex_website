@@ -141,7 +141,8 @@ def _row(
         "channel": channel,
         "subject": message.subject if is_email else None,
         "message": message.email_text if is_email else message.sms_text,
-        "payload": message.variables or None,
+        # Email rows keep the optional HTML body; SMS rows keep the template variables.
+        "payload": ({"html": message.email_html} if message.email_html else None) if is_email else (message.variables or None),
         "reminder_offset_days": reminder_offset_days,
     }
 
@@ -225,6 +226,7 @@ def _attempt(
                 to=notification.recipient_address,
                 subject=notification.subject or "Skill Cortex",
                 text=one_shot_text or notification.message,
+                html=None if one_shot_text else (notification.payload or {}).get("html"),
             )
         else:
             providers.sms.send(

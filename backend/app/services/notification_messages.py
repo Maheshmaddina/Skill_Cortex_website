@@ -2,10 +2,11 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from html import escape
 from zoneinfo import ZoneInfo
 
 from app.config import get_settings
-from app.models import Booking, Payment, User
+from app.models import Booking, Payment, PaymentMethod, User
 
 SIGN_OFF = "— Team Skill Cortex"
 
@@ -16,6 +17,7 @@ class RenderedMessage:
     email_text: str
     sms_text: str = ""
     variables: dict[str, str] = field(default_factory=dict)  # named values for SMS templates
+    email_html: str | None = None  # optional HTML version of the email (e.g. a formatted receipt)
 
 
 def format_inr(paise: int) -> str:
@@ -62,7 +64,9 @@ Browse upcoming webinars and book your seat: {get_settings().frontend_url}/webin
 
 
 def booking_confirmed(booking: Booking, payment: Payment | None) -> RenderedMessage:
+    """Confirmation for the learner; for a paid booking it carries the payment receipt."""
     values = _booking_values(booking, payment)
+    receipt = _receipt_text(booking, payment) if payment else ""
     text = f"""Hi {values['name']},
 
 Your booking is confirmed.
@@ -73,7 +77,7 @@ Time: {values['time_range']}
 Amount paid: {values['amount']}
 Booking ID: {values['booking_id']}
 Payment reference: {values['payment_ref']}
-
+{receipt}
 We'll remind you before the session. View your booking: {get_settings().frontend_url}/bookings/{booking.id}
 
 {SIGN_OFF}"""
@@ -81,28 +85,43 @@ We'll remind you before the session. View your booking: {get_settings().frontend
         f"Skill Cortex: Booking {values['booking_id']} confirmed for {values['webinar']} on "
         f"{values['date']} at {values['time']} IST. Amount: {values['amount']}."
     )
+    html = (
+        _email_html(
+            heading="Your booking is confirmed",
+            intro=f"Hi {values['name']}, thank you for your payment. Your seat is booked and here is your receipt.",
+            booking=booking,
+            payment=payment,
+            button=("View receipt", f"{get_settings().frontend_url}/bookings/{booking.id}/receipt"),
+            footer="We'll remind you before the session.",
+        )
+        if payment
+        else None
+    )
     return RenderedMessage(
         subject=f"Booking confirmed: {values['webinar']} ({values['booking_id']})",
         email_text=text,
         sms_text=sms,
         variables=_sms_variables(values),
+        email_html=html,
     )
 
 
 def admin_payment(booking: Booking, payment: Payment) -> RenderedMessage:
     values = _booking_values(booking, payment)
     user = booking.user
+    learner_chose = " (date & time chosen by the learner)" if booking.slot.set_by_user_id else ""
     text = f"""New payment received
 
 User: {user.name}
 Email: {user.email}
 Phone: {user.phone}
 Course: {values['webinar']}
-Slot: {values['date']}, {values['time_range']}{" (date & time chosen by the learner)" if booking.slot.set_by_user_id else ""}
+Slot: {values['date']}, {values['time_range']}{learner_chose}
 Amount: {values['amount']}
 Status: PAID
 Booking ID: {values['booking_id']}
-Payment reference: {values['payment_ref']}"""
+Payment reference: {values['payment_ref']}
+{_receipt_text(booking, payment)}"""
     sms = (
         f"Skill Cortex: {values['amount']} received from {user.name} for {values['webinar']} "
         f"({values['date']} {values['time']} IST). Booking {values['booking_id']}."
@@ -112,7 +131,91 @@ Payment reference: {values['payment_ref']}"""
         email_text=text,
         sms_text=sms,
         variables=_sms_variables(values),
+        email_html=_email_html(
+            heading="New payment received",
+            intro=f"{escape(user.name)} paid for a webinar{learner_chose}. The booking is confirmed.",
+            booking=booking,
+            payment=payment,
+            button=("Open bookings in admin", f"{get_settings().frontend_url}/admin/bookings?q={booking.reference}"),
+            footer="Copy of the receipt sent to the learner.",
+        ),
     )
+
+
+# --- payment receipt -------------------------------------------------------------
+
+
+def _payment_method(payment: Payment) -> str:
+    return "UPI" if payment.method == PaymentMethod.UPI else "Card / Netbanking / Wallet (Razorpay)"
+
+
+def _payment_reference(payment: Payment) -> str:
+    if payment.method == PaymentMethod.UPI:
+        return f"UPI transaction ID {payment.upi_reference}"
+    return payment.razorpay_payment_id or "—"
+
+
+def _receipt_rows(booking: Booking, payment: Payment) -> list[tuple[str, str]]:
+    user, slot = booking.user, booking.slot
+    paid_at = payment.paid_at or datetime.now().astimezone()
+    return [
+        ("Receipt no.", booking.reference),
+        ("Paid on", f"{format_date(paid_at)}, {format_time(paid_at)} IST"),
+        ("Billed to", f"{user.name} · {user.email} · {user.phone}"),
+        ("Course", booking.webinar.title),
+        ("Session", f"{format_date(slot.start_at)}, {format_time(slot.start_at)} – {format_time(slot.end_at)} IST"),
+        ("Amount paid (incl. all taxes)", format_inr(payment.amount_paise)),
+        ("Payment method", _payment_method(payment)),
+        ("Payment reference", _payment_reference(payment)),
+        ("Status", "PAID"),
+    ]
+
+
+def _receipt_text(booking: Booking, payment: Payment) -> str:
+    rows = "\n".join(f"{label}: {value}" for label, value in _receipt_rows(booking, payment))
+    link = f"{get_settings().frontend_url}/bookings/{booking.id}/receipt"
+    return f"""
+---------------- PAYMENT RECEIPT ----------------
+Skill Cortex AI · SreeNagar Colony, Punganur Road, Madanapalle
+{rows}
+Printable receipt: {link}
+-------------------------------------------------
+"""
+
+
+def _email_html(
+    *, heading: str, intro: str, booking: Booking, payment: Payment, button: tuple[str, str], footer: str
+) -> str:
+    rows = "".join(
+        f'<tr><td style="padding:8px 0;color:#64748b;border-bottom:1px solid #f1f5f9">{escape(label)}</td>'
+        f'<td style="padding:8px 0;text-align:right;font-weight:600;color:#0f172a;border-bottom:1px solid #f1f5f9">'
+        f"{escape(value)}</td></tr>"
+        for label, value in _receipt_rows(booking, payment)
+    )
+    label, url = button
+    return f"""<!doctype html>
+<html><body style="margin:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;color:#0f172a">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 12px"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;border:1px solid #e2e8f0">
+<tr><td style="padding:20px 24px;border-bottom:4px solid #ff6b00">
+<span style="font-size:20px;font-weight:700">Skill <span style="color:#ff6b00">Cortex</span> AI</span>
+<div style="font-size:12px;color:#64748b">SreeNagar Colony, Punganur Road, Madanapalle</div>
+</td></tr>
+<tr><td style="padding:24px">
+<h1 style="margin:0 0 8px;font-size:22px">{escape(heading)}</h1>
+<p style="margin:0 0 20px;color:#475569;line-height:1.5">{intro}</p>
+<div style="font-size:12px;font-weight:700;letter-spacing:.05em;color:#64748b;text-transform:uppercase">Payment receipt</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px;font-size:14px">{rows}</table>
+<p style="margin:24px 0 0;text-align:center">
+<a href="{escape(url)}" style="display:inline-block;background:#ff6b00;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:10px">{escape(label)}</a>
+</p>
+<p style="margin:20px 0 0;color:#64748b;font-size:13px;text-align:center">{escape(footer)}</p>
+</td></tr>
+<tr><td style="padding:14px 24px;background:#021927;color:#94a3b8;font-size:12px;border-radius:0 0 16px 16px">
+Computer-generated payment receipt · {escape(get_settings().email_from)} — Team Skill Cortex
+</td></tr>
+</table></td></tr></table>
+</body></html>"""
 
 
 def booking_cancelled(booking: Booking, *, refunded: bool) -> RenderedMessage:
@@ -215,7 +318,7 @@ def _booking_values(booking: Booking, payment: Payment | None) -> dict[str, str]
         "time_range": f"{format_time(slot.start_at)} – {format_time(slot.end_at)} IST",
         "amount": format_amount(booking.amount_paise),
         "booking_id": booking.reference,
-        "payment_ref": (payment.razorpay_payment_id if payment else None) or "—",
+        "payment_ref": (_payment_reference(payment) if payment else None) or "—",
     }
 
 

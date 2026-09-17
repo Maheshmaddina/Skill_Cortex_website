@@ -34,10 +34,10 @@ class FakeEmailProvider:
         self.sent: list[dict] = []
         self.error: Exception | None = None
 
-    def send(self, *, to: str, subject: str, text: str) -> None:
+    def send(self, *, to: str, subject: str, text: str, html: str | None = None) -> None:
         if self.error:
             raise self.error
-        self.sent.append({"to": to, "subject": subject, "text": text})
+        self.sent.append({"to": to, "subject": subject, "text": text, "html": html})
 
 
 class FakeSmsProvider:

@@ -120,6 +120,15 @@ def test_smtp_provider_sends_over_starttls(fake_smtp: type[FakeSMTP]) -> None:
     assert message.get_content().strip() == "Hello"
 
 
+def test_smtp_provider_sends_html_with_a_plain_text_fallback(fake_smtp: type[FakeSMTP]) -> None:
+    smtp_provider().send(to="learner@example.com", subject="Receipt", text="Plain receipt", html="<p>HTML receipt</p>")
+
+    [message] = fake_smtp.instances[0].messages
+    assert message.get_content_type() == "multipart/alternative"
+    assert message.get_body(("plain",)).get_content().strip() == "Plain receipt"
+    assert message.get_body(("html",)).get_content().strip() == "<p>HTML receipt</p>"
+
+
 def test_smtp_connection_failures_are_delivery_errors(fake_smtp: type[FakeSMTP]) -> None:
     fake_smtp.fail_with = ConnectionRefusedError("refused")
 

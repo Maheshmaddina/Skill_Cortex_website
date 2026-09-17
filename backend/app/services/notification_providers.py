@@ -26,7 +26,7 @@ class NotificationDeliveryError(Exception):
 
 
 class EmailProvider(Protocol):
-    def send(self, *, to: str, subject: str, text: str) -> None: ...
+    def send(self, *, to: str, subject: str, text: str, html: str | None = None) -> None: ...
 
 
 class SmsProvider(Protocol):
@@ -34,7 +34,7 @@ class SmsProvider(Protocol):
 
 
 class ConsoleEmailProvider:
-    def send(self, *, to: str, subject: str, text: str) -> None:
+    def send(self, *, to: str, subject: str, text: str, html: str | None = None) -> None:
         logger.warning("[dev email] to=%s subject=%r\n%s", to, subject, text)
 
 
@@ -62,12 +62,14 @@ class SmtpEmailProvider:
         self._from = formataddr((from_name, from_address))
         self._timeout = timeout
 
-    def send(self, *, to: str, subject: str, text: str) -> None:
+    def send(self, *, to: str, subject: str, text: str, html: str | None = None) -> None:
         message = EmailMessage()
         message["From"] = self._from
         message["To"] = to
         message["Subject"] = subject
         message.set_content(text)
+        if html:
+            message.add_alternative(html, subtype="html")
         try:
             with smtplib.SMTP(self._host, self._port, timeout=self._timeout) as smtp:
                 if self._use_tls:

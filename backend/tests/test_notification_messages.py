@@ -65,3 +65,53 @@ def test_admin_payment_message_includes_learner_contact_and_status(db: Session) 
     for expected in ("Email: learner@example.com", "Phone: 9876543210", "Status: PAID", "Amount: ₹999"):
         assert expected in message.email_text
     assert message.subject.startswith("New payment received")
+
+
+def test_paid_confirmation_carries_the_payment_receipt(db: Session) -> None:
+    booking, payment = _booking_on_20_september(db)
+
+    message = booking_confirmed(booking, payment)
+
+    for expected in (
+        "PAYMENT RECEIPT",
+        f"Receipt no.: {booking.reference}",
+        "Billed to: Test User · learner@example.com · 9876543210",
+        "Amount paid (incl. all taxes): ₹999",
+        "Payment method: Card / Netbanking / Wallet (Razorpay)",
+        f"/bookings/{booking.id}/receipt",
+    ):
+        assert expected in message.email_text
+    assert message.email_html is not None
+    assert "Payment receipt" in message.email_html and "View receipt" in message.email_html
+    assert booking.reference in message.email_html
+
+
+def test_upi_receipt_shows_the_transaction_id(db: Session) -> None:
+    from app.models import PaymentMethod
+
+    booking, payment = _booking_on_20_september(db)
+    payment.method, payment.razorpay_order_id, payment.razorpay_payment_id = PaymentMethod.UPI, None, None
+    payment.upi_reference = "412345678901"
+
+    for message in (booking_confirmed(booking, payment), admin_payment(booking, payment)):
+        assert "Payment method: UPI" in message.email_text
+        assert "UPI transaction ID 412345678901" in message.email_text
+        assert "UPI transaction ID 412345678901" in message.email_html
+
+
+def test_admin_payment_email_has_the_receipt_and_escapes_learner_input(db: Session) -> None:
+    booking, payment = _booking_on_20_september(db)
+    booking.user.name = "<b>Asha</b>"
+
+    message = admin_payment(booking, payment)
+
+    assert "PAYMENT RECEIPT" in message.email_text
+    assert "&lt;b&gt;Asha&lt;/b&gt;" in message.email_html
+    assert "<b>Asha</b>" not in message.email_html
+
+
+def test_free_confirmation_has_no_receipt(db: Session) -> None:
+    booking, _ = _booking_on_20_september(db)
+    message = booking_confirmed(booking, None)
+    assert "PAYMENT RECEIPT" not in message.email_text
+    assert message.email_html is None
