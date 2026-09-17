@@ -25,8 +25,8 @@ export default function Dashboard() {
       <h1 className="text-3xl font-bold tracking-tight text-slate-900">Welcome back, {user.name.split(" ")[0]}!</h1>
       <p className="mt-1 text-slate-500">{user.department ? `Department: ${user.department.name}` : "Pick a webinar to get started."}</p>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+      <div className="mt-8">
+        <Card>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Upcoming webinar</h2>
           {upcoming.isPending ? (
             <PageSpinner />
@@ -50,19 +50,6 @@ export default function Dashboard() {
           ) : (
             <p className="mt-3 text-slate-600">You have no upcoming webinars yet.</p>
           )}
-        </Card>
-
-        <Card>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Quick actions</h2>
-          <div className="mt-4 grid gap-2">
-            <Button to="/webinars">Browse Webinars</Button>
-            <Button variant="secondary" to="/bookings">
-              My Bookings
-            </Button>
-            <Button variant="secondary" to="/profile">
-              Profile
-            </Button>
-          </div>
         </Card>
       </div>
 

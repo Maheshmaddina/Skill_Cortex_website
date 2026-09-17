@@ -37,8 +37,15 @@ export default function Layout() {
 
   const account = user ? (
     <>
-      <NavLink to="/profile" className={linkClass}>
-        {user.name.split(" ")[0]}
+      <NavLink
+        to="/profile"
+        title={`${user.name} — profile`}
+        aria-label={`Your profile (${user.name})`}
+        className={({ isActive }) =>
+          `grid size-9 place-items-center rounded-full bg-brand-500 text-sm font-bold uppercase text-white ring-2 ring-offset-2 transition hover:bg-brand-600 ${isActive ? "ring-brand-500" : "ring-transparent"}`
+        }
+      >
+        {user.name.trim().charAt(0) || "?"}
       </NavLink>
       <Button variant="ghost" onClick={handleLogout}>
         Log out
