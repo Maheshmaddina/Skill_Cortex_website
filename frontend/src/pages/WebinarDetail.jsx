@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { useAuth } from "../auth/AuthContext.jsx";
 import { SetWebinarPanel } from "../components/SetWebinar.jsx";
-import { Alert, Badge, Button, Card, QueryState } from "../components/ui.jsx";
+import { Alert, Button, Card, QueryState } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { formatDate, formatDuration, formatINR, formatTimeRange } from "../lib/format.js";
 
@@ -62,14 +62,9 @@ export default function WebinarDetail() {
             slotDays.find((day) => !day.full) ??
             slotDays[0];
           return (
-            <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_24rem]">
+            <div className="mt-4">
               <div>
-                <div className="flex flex-wrap gap-1.5">
-                  {data.departments.map((department) => (
-                    <Badge key={department.id}>{department.name}</Badge>
-                  ))}
-                </div>
-                <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{data.title}</h1>
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900">{data.title}</h1>
                 <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-slate-600">
                   {data.instructor && (
                     <div>
@@ -86,10 +81,11 @@ export default function WebinarDetail() {
                     <dd className="inline font-medium text-slate-900">{formatINR(data.price_paise)}</dd>
                   </div>
                 </dl>
-                <p className="mt-6 whitespace-pre-line leading-7 text-slate-700">{data.description}</p>
+                <p className="mt-6 max-w-4xl whitespace-pre-line leading-7 text-slate-700">{data.description}</p>
               </div>
 
-              <div className="grid h-fit gap-6">
+              {/* Two full-width panels side by side: set your own time, or join a scheduled session. */}
+              <div className="mt-8 grid items-start gap-6 lg:grid-cols-2">
               <Card>
                 <SetWebinarPanel
                   webinar={data}
