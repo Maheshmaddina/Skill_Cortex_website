@@ -1,8 +1,6 @@
 import { formatClock, formatDate, formatDuration, formatINR, formatLocalDate, formatTime } from "../lib/format.js";
 import { SetWebinarButton } from "./SetWebinar.jsx";
-import { Badge, Button, Card } from "./ui.jsx";
-
-const MAX_DEPARTMENT_BADGES = 2;
+import { Button, Card } from "./ui.jsx";
 
 function detailLink(webinar, preference) {
   const params = new URLSearchParams();
@@ -17,21 +15,9 @@ function detailLink(webinar, preference) {
 
 export default function WebinarCard({ webinar, preference = {} }) {
   const next = webinar.next_slot;
-  const shown = webinar.departments.slice(0, MAX_DEPARTMENT_BADGES);
-  const hidden = webinar.departments.slice(MAX_DEPARTMENT_BADGES);
   return (
     <Card className="flex flex-col">
-      <div className="flex flex-wrap gap-1.5">
-        {shown.map((department) => (
-          <Badge key={department.id}>{department.name}</Badge>
-        ))}
-        {hidden.length > 0 && (
-          <span title={hidden.map((department) => department.name).join(", ")}>
-            <Badge color="slate">+{hidden.length} more</Badge>
-          </span>
-        )}
-      </div>
-      <h3 className="mt-3 text-lg font-semibold text-slate-900">{webinar.title}</h3>
+      <h3 className="text-lg font-semibold text-slate-900">{webinar.title}</h3>
       <p className="mt-2 flex-1 text-sm text-slate-600">{webinar.short_description}</p>
       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
         <div>

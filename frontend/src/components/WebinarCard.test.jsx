@@ -33,7 +33,7 @@ describe("WebinarCard", () => {
     renderCard();
 
     expect(screen.getByRole("heading", { name: "Python Programming" })).toBeInTheDocument();
-    expect(screen.getByText("CSE")).toBeInTheDocument();
+    expect(screen.queryByText("CSE")).not.toBeInTheDocument(); // departments aren't listed on cards
     expect(screen.getByText("₹999")).toBeInTheDocument();
     expect(screen.getByText("1 hr 30 min")).toBeInTheDocument();
     expect(screen.getByText("Sun, 20 Sep 2026 · 10:00 AM IST")).toBeInTheDocument();

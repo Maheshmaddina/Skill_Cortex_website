@@ -13,10 +13,6 @@ export default function Dashboard() {
     queryKey: ["bookings", { scope: "upcoming", page_size: 5 }],
     queryFn: () => api("/bookings", { query: { scope: "upcoming", page_size: 5 } }),
   });
-  const past = useQuery({
-    queryKey: ["bookings", { scope: "past", page_size: 1 }],
-    queryFn: () => api("/bookings", { query: { scope: "past", page_size: 1 } }),
-  });
 
   const next = upcoming.data?.items.find((booking) => booking.status === "CONFIRMED") ?? upcoming.data?.items[0];
 
@@ -50,17 +46,6 @@ export default function Dashboard() {
           ) : (
             <p className="mt-3 text-slate-600">You have no upcoming webinars yet.</p>
           )}
-        </Card>
-      </div>
-
-      <div className="mt-6 grid gap-6 sm:grid-cols-2">
-        <Card>
-          <p className="text-sm text-slate-500">Upcoming bookings</p>
-          <p className="mt-1 text-3xl font-bold">{upcoming.data?.total ?? "–"}</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-slate-500">Past & cancelled bookings</p>
-          <p className="mt-1 text-3xl font-bold">{past.data?.total ?? "–"}</p>
         </Card>
       </div>
 
