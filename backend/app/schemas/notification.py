@@ -21,6 +21,10 @@ class NotificationOut(BaseModel):
     created_at: datetime
 
 
+class UnreadCount(BaseModel):
+    count: int
+
+
 class NotificationAdminOut(NotificationOut):
     user_id: UUID | None
     recipient_type: RecipientType

@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import func, select, text, update
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -20,7 +20,9 @@ from app.services.notifications import (
     REDACTED_RESET_MESSAGE,
     deliver_password_reset,
     dispatch_pending,
+    notify_booking_cancelled,
     notify_booking_confirmed,
+    notify_reminder,
     record_password_reset,
 )
 from tests.factories import auth_header, make_booking, make_department, make_slot, make_user, make_webinar
@@ -245,8 +247,9 @@ def test_learners_see_only_their_own_notifications(client: TestClient, db: Sessi
 
     body = client.get("/notifications", headers=auth_header(learner)).json()
 
-    assert body["total"] == 2
-    assert {item["channel"] for item in body["items"]} == {"EMAIL", "SMS"}
+    # Email + SMS for the same confirmation show as one inbox entry.
+    assert body["total"] == 1
+    assert body["items"][0]["channel"] == "EMAIL"
     assert "recipient_address" not in body["items"][0]
 
 
@@ -284,3 +287,23 @@ def test_admin_monitors_and_retries_notifications(
     reset = record_password_reset(db, make_user(db))
     assert client.post(f"/admin/notifications/{reset.id}/retry", headers=admin_headers).status_code == 409
     assert client.get("/admin/notifications", headers=learner_headers).status_code == 403
+
+
+def test_unread_badge_counts_new_messages_until_the_inbox_is_opened(client: TestClient, db: Session) -> None:
+    learner = make_user(db, email="learner@example.com")
+    headers = auth_header(learner)
+    notify_booking_confirmed(db, make_booking(db, learner, make_slot(db, make_webinar(db)), BookingStatus.CONFIRMED))
+    booking = make_booking(db, learner, make_slot(db, make_webinar(db)), BookingStatus.CONFIRMED)
+    notify_reminder(db, booking, offset_days=1, email=False, sms=True)  # SMS-only message still shows
+
+    assert client.get("/notifications/unread-count", headers=headers).json() == {"count": 2}
+    assert client.get("/notifications", headers=headers).json()["total"] == 2
+
+    assert client.post("/notifications/mark-seen", headers=headers).status_code == 204
+    assert client.get("/notifications/unread-count", headers=headers).json() == {"count": 0}
+
+    notify_booking_cancelled(db, booking, refunded=False)
+    db.execute(
+        update(Notification).where(Notification.type == NotificationType.CANCELLATION).values(created_at=func.now() + text("interval '1 second'"))
+    )
+    assert client.get("/notifications/unread-count", headers=headers).json() == {"count": 1}

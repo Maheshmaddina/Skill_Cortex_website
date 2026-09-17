@@ -15,9 +15,9 @@ from functools import lru_cache
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import Select, and_, or_, select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.config import get_settings
 from app.database import SessionLocal
@@ -309,6 +309,48 @@ def list_notifications(
     total = count_rows(db, query)
     rows = db.scalars(query.order_by(Notification.created_at.desc(), Notification.id).offset(offset).limit(limit)).all()
     return list(rows), total
+
+
+# --- learner inbox -------------------------------------------------------------
+
+
+def _inbox_query(user_id: UUID) -> Select:
+    """One entry per message: the email, or the SMS when that message had no email."""
+    email_twin = aliased(Notification)
+    has_email = (
+        select(email_twin.id)
+        .where(
+            email_twin.user_id == Notification.user_id,
+            email_twin.channel == NotificationChannel.EMAIL,
+            email_twin.type == Notification.type,
+            email_twin.booking_id.is_not_distinct_from(Notification.booking_id),
+            email_twin.reminder_offset_days.is_not_distinct_from(Notification.reminder_offset_days),
+        )
+        .exists()
+    )
+    return select(Notification).where(
+        Notification.user_id == user_id,
+        or_(Notification.channel == NotificationChannel.EMAIL, ~has_email),
+    )
+
+
+def list_inbox(db: Session, user: User, *, offset: int, limit: int) -> tuple[list[Notification], int]:
+    query = _inbox_query(user.id)
+    total = count_rows(db, query)
+    rows = db.scalars(query.order_by(Notification.created_at.desc(), Notification.id).offset(offset).limit(limit)).all()
+    return list(rows), total
+
+
+def unread_count(db: Session, user: User) -> int:
+    query = _inbox_query(user.id)
+    if user.notifications_seen_at is not None:
+        query = query.where(Notification.created_at > user.notifications_seen_at)
+    return count_rows(db, query)
+
+
+def mark_inbox_seen(db: Session, user: User) -> None:
+    user.notifications_seen_at = datetime.now(UTC)
+    db.flush()
 
 
 def get_notification(db: Session, notification_id: UUID) -> Notification:

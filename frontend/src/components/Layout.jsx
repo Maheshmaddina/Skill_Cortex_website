@@ -1,7 +1,9 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 
 import { useAuth } from "../auth/AuthContext.jsx";
+import { api } from "../lib/api.js";
 import Logo from "./Logo.jsx";
 import { Button } from "./ui.jsx";
 
@@ -18,6 +20,26 @@ function navLinks(user) {
   ];
 }
 
+/** Bell + count of messages that arrived since the learner last opened Notifications. */
+function NotificationsLabel({ count }) {
+  return (
+    <span className="inline-flex items-center gap-3">
+      <span className="relative">
+        <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5m6 0v1a3 3 0 1 1-6 0v-1m6 0H9" />
+        </svg>
+        {count > 0 && (
+          <span className="absolute -top-2 -right-2.5 grid min-w-5 place-items-center rounded-full bg-rose-600 px-1 text-[0.65rem] leading-5 font-bold text-white">
+            {count > 99 ? "99+" : count}
+          </span>
+        )}
+      </span>
+      Notifications
+      {count > 0 && <span className="sr-only">({count} new)</span>}
+    </span>
+  );
+}
+
 function linkClass({ isActive }) {
   return `rounded-lg px-3 py-2 text-sm font-medium ${isActive ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`;
 }
@@ -29,6 +51,15 @@ export default function Layout() {
   const navigate = useNavigate();
 
   useEffect(() => setMenuOpen(false), [location.pathname]);
+
+  const unread = useQuery({
+    queryKey: ["notifications", "unread-count"],
+    queryFn: () => api("/notifications/unread-count"),
+    enabled: user?.role === "USER",
+    refetchInterval: 60_000,
+  });
+  const unreadCount = user?.role === "USER" ? (unread.data?.count ?? 0) : 0;
+  const label = (to, text) => (to === "/notifications" ? <NotificationsLabel count={unreadCount} /> : text);
 
   async function handleLogout() {
     await logout();
@@ -66,9 +97,9 @@ export default function Layout() {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <Logo />
           <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
-            {navLinks(user).map(([to, label]) => (
+            {navLinks(user).map(([to, text]) => (
               <NavLink key={to} to={to} end={to === "/admin" ? false : undefined} className={linkClass}>
-                {label}
+                {label(to, text)}
               </NavLink>
             ))}
           </nav>
@@ -87,9 +118,9 @@ export default function Layout() {
         </div>
         {menuOpen && (
           <nav className="flex flex-col gap-1 border-t border-slate-200 px-4 py-3 md:hidden" aria-label="Mobile">
-            {navLinks(user).map(([to, label]) => (
+            {navLinks(user).map(([to, text]) => (
               <NavLink key={to} to={to} className={linkClass}>
-                {label}
+                {label(to, text)}
               </NavLink>
             ))}
             <div className="mt-2 flex items-center gap-2 border-t border-slate-100 pt-3">{account}</div>
