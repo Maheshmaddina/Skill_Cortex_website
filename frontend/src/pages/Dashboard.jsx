@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext.jsx";
 import BookingSummary from "../components/BookingSummary.jsx";
 import SessionCountdown from "../components/SessionCountdown.jsx";
-import { Button, Card, EmptyState, PageSpinner, StatusBadge } from "../components/ui.jsx";
+import { Badge, Button, Card, EmptyState, PageSpinner, StatusBadge } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { formatDate, formatTimeRange } from "../lib/format.js";
 
@@ -31,12 +31,46 @@ function ConfirmedWebinar({ booking }) {
   );
 }
 
+/** A webinar the learner attended: paid, confirmed, and the session is over. */
+function AttendedWebinar({ booking }) {
+  return (
+    <li className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="font-semibold text-slate-900">{booking.webinar.title}</p>
+        <p className="mt-1 text-sm text-slate-600">
+          {formatDate(booking.slot.start_at)} · {formatTimeRange(booking.slot.start_at, booking.slot.end_at)}
+        </p>
+        <p className="mt-1 text-xs text-slate-400">Booking {booking.reference}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+        <Badge color="green">✓ Attended</Badge>
+        {booking.paid_payment && (
+          <Button size="sm" variant="secondary" to={`/bookings/${booking.id}/receipt`}>
+            Receipt
+          </Button>
+        )}
+      </div>
+    </li>
+  );
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const upcoming = useQuery({
     queryKey: ["bookings", { scope: "upcoming", page_size: 100 }],
     queryFn: () => api("/bookings", { query: { scope: "upcoming", page_size: 100 } }),
   });
+
+  const past = useQuery({
+    queryKey: ["bookings", { scope: "past", page_size: 100 }],
+    queryFn: () => api("/bookings", { query: { scope: "past", page_size: 100 } }),
+  });
+  const now = Date.now();
+  // Completed sessions, plus confirmed ones that just ended before the completion job marked them.
+  const attended = (past.data?.items ?? []).filter(
+    (booking) =>
+      booking.status === "COMPLETED" || (booking.status === "CONFIRMED" && new Date(booking.slot.end_at).getTime() <= now),
+  );
 
   const bookings = upcoming.data?.items ?? [];
   const confirmed = bookings.filter((booking) => booking.status === "CONFIRMED"); // soonest first
@@ -87,6 +121,24 @@ export default function Dashboard() {
           </div>
         </section>
       )}
+
+      <section className="mt-10">
+        <h2 className="text-lg font-semibold">
+          Attended webinars
+          {attended.length > 0 && <span className="ml-2 text-sm font-normal text-slate-500">({attended.length})</span>}
+        </h2>
+        {past.isPending ? (
+          <PageSpinner />
+        ) : attended.length ? (
+          <ul className="mt-4 space-y-3">
+            {attended.map((booking) => (
+              <AttendedWebinar key={booking.id} booking={booking} />
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-3 text-sm text-slate-500">Webinars you've attended will appear here after each session ends.</p>
+        )}
+      </section>
     </div>
   );
 }
