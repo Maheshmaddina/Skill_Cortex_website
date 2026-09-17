@@ -173,3 +173,22 @@ def test_catalog_cards_report_a_session_at_the_preferred_date_and_time(client: T
     assert matching(preferred_date=in_days(3).isoformat()) == str(morning.id)
     assert matching(preferred_date=in_days(3).isoformat(), preferred_time="18:30") == str(evening.id)
     assert matching(preferred_date=in_days(3).isoformat(), preferred_time="14:00") is None
+
+
+def test_an_abandoned_learner_set_session_is_not_listed_publicly(client: TestClient, db: Session) -> None:
+    webinar, learner = make_webinar(db), make_user(db)
+    booking_id = set_webinar(client, learner, webinar, in_days(2), "07:30").json()["id"]
+    [slot] = slots_of(db, webinar)
+
+    card = client.get("/webinars").json()["items"][0]
+    assert card["next_slot"]["id"] == str(slot.id)  # a seat is held, so it's a real session
+
+    client.post(f"/bookings/{booking_id}/cancel", headers=auth_header(learner))
+    card = client.get("/webinars").json()["items"][0]
+    assert card["next_slot"] is None
+    assert client.get(f"/webinars/{webinar.id}").json()["slots"] == []
+
+    # Choosing that time again still reuses the session.
+    again = set_webinar(client, make_user(db), webinar, in_days(2), "07:30")
+    assert again.json()["slot"]["id"] == str(slot.id)
+    assert again.json()["slot"]["available_seats"] == LEARNER_SESSION_CAPACITY - 1

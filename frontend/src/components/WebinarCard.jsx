@@ -1,3 +1,5 @@
+import { Link } from "react-router";
+
 import { formatClock, formatDate, formatDuration, formatINR, formatLocalDate, formatTime } from "../lib/format.js";
 import { SetWebinarButton } from "./SetWebinar.jsx";
 import { Button, Card } from "./ui.jsx";
@@ -13,7 +15,7 @@ function detailLink(webinar, preference) {
   return `/webinars/${webinar.id}${query ? `?${query}` : ""}`;
 }
 
-export default function WebinarCard({ webinar, preference = {} }) {
+export default function WebinarCard({ webinar, preference = {}, myBooking }) {
   const next = webinar.next_slot;
   return (
     <Card className="flex flex-col">
@@ -36,6 +38,7 @@ export default function WebinarCard({ webinar, preference = {} }) {
           {next && <dd className="text-xs text-emerald-700">{next.available_seats} seats left in this session</dd>}
         </div>
       </dl>
+      {myBooking && <MyBooking booking={myBooking} />}
       {preference.date && <PreferenceMatch webinar={webinar} preference={preference} />}
       <Button
         to={detailLink(webinar, preference)}
@@ -45,6 +48,26 @@ export default function WebinarCard({ webinar, preference = {} }) {
         View Details
       </Button>
     </Card>
+  );
+}
+
+/** The session this learner already booked, with its real seat count. */
+function MyBooking({ booking }) {
+  const { slot } = booking;
+  const confirmed = booking.status === "CONFIRMED";
+  return (
+    <Link
+      to={`/bookings/${booking.id}`}
+      className="mt-4 block rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-900 ring-1 ring-emerald-200 hover:ring-emerald-400"
+    >
+      <p className="font-semibold">{confirmed ? "✓ You're booked" : "Your seat is held — payment pending"}</p>
+      <p>
+        {formatDate(slot.start_at)} · {formatTime(slot.start_at)} IST
+      </p>
+      <p className="text-xs text-emerald-700">
+        {slot.capacity - slot.available_seats} of {slot.capacity} seats booked · {slot.available_seats} left
+      </p>
+    </Link>
   );
 }
 

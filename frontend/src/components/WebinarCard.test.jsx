@@ -72,4 +72,23 @@ describe("WebinarCard", () => {
     expect(screen.getByText("Pick a preferred time to set your webinar on Tue, 22 Sep 2026.")).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
+  it("shows the session the learner booked with its seats taken", () => {
+    const booking = {
+      id: "bk1",
+      status: "CONFIRMED",
+      slot: { id: "s2", start_at: "2026-09-22T04:30:00Z", end_at: "2026-09-22T06:30:00Z", capacity: 60, available_seats: 59 },
+    };
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <WebinarCard webinar={webinar} myBooking={booking} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText("✓ You're booked")).toBeInTheDocument();
+    expect(screen.getByText("Tue, 22 Sep 2026 · 10:00 AM IST")).toBeInTheDocument();
+    expect(screen.getByText("1 of 60 seats booked · 59 left")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /You're booked/ })).toHaveAttribute("href", "/bookings/bk1");
+  });
 });

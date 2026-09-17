@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import Department, RecordStatus, Slot, SlotStatus, Webinar
@@ -171,7 +171,13 @@ def bookable_slots_by_webinar(
 
 
 def _bookable(now: datetime) -> tuple:
-    return Slot.status == SlotStatus.ACTIVE, Slot.start_at > now
+    # A learner-set session is listed publicly only once someone holds or has booked a seat in it,
+    # so a time a learner picked and then abandoned doesn't show up as the "next slot".
+    return (
+        Slot.status == SlotStatus.ACTIVE,
+        Slot.start_at > now,
+        or_(Slot.set_by_user_id.is_(None), Slot.available_seats < Slot.capacity),
+    )
 
 
 def _filtered(

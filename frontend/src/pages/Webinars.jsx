@@ -34,6 +34,16 @@ export default function Webinars() {
   const courseTitles = (courses.data?.items ?? []).map((course) => course.title);
   const selectedCourse = courseTitles.includes(params.q) ? params.q : ALL;
   const preference = { date: params.date, time: params.time };
+  // The learner's own upcoming bookings, so each card can show the session they booked.
+  const myBookings = useQuery({
+    queryKey: ["bookings", { scope: "upcoming", page_size: 100 }],
+    queryFn: () => api("/bookings", { query: { scope: "upcoming", page_size: 100 } }),
+    enabled: user?.role === "USER",
+  });
+  const bookingByWebinar = new Map();
+  for (const booking of myBookings.data?.items ?? []) {
+    if (!bookingByWebinar.has(booking.webinar.id)) bookingByWebinar.set(booking.webinar.id, booking);
+  }
   const webinars = useQuery({
     queryKey: ["webinars", { departmentId, q: params.q, page, ...preference }],
     queryFn: () =>
@@ -119,7 +129,12 @@ export default function Webinars() {
             <>
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {data.items.map((webinar) => (
-                  <WebinarCard key={webinar.id} webinar={webinar} preference={preference} />
+                  <WebinarCard
+                    key={webinar.id}
+                    webinar={webinar}
+                    preference={preference}
+                    myBooking={bookingByWebinar.get(webinar.id)}
+                  />
                 ))}
               </div>
               <Pagination page={page} pageSize={PAGE_SIZE} total={data.total} onChange={(next) => setParams({ page: next })} />

@@ -34,6 +34,8 @@ class BookingSlot(BaseModel):
     id: UUID
     start_at: datetime
     end_at: datetime
+    capacity: int
+    available_seats: int  # seats left in this session (confirmed bookings and payment holds are taken)
 
 
 class BookingPaidPayment(BaseModel):
