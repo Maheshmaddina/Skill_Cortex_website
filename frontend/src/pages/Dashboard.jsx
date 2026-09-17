@@ -7,64 +7,86 @@ import { Button, Card, EmptyState, PageSpinner, StatusBadge } from "../component
 import { api } from "../lib/api.js";
 import { formatDate, formatTimeRange } from "../lib/format.js";
 
+/** One confirmed webinar with its live countdown. */
+function ConfirmedWebinar({ booking }) {
+  return (
+    <Card className="flex flex-col">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-lg font-semibold text-slate-900">{booking.webinar.title}</p>
+        <StatusBadge status={booking.status} />
+      </div>
+      <p className="mt-1 text-sm text-slate-600">
+        {formatDate(booking.slot.start_at)} · {formatTimeRange(booking.slot.start_at, booking.slot.end_at)}
+      </p>
+      <div className="mt-5 flex-1">
+        <SessionCountdown start={booking.slot.start_at} end={booking.slot.end_at} />
+      </div>
+      <div className="mt-5 flex items-center justify-between gap-3">
+        <span className="text-xs text-slate-400">Booking {booking.reference}</span>
+        <Button size="sm" variant="secondary" to={`/bookings/${booking.id}`}>
+          View booking
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const upcoming = useQuery({
-    queryKey: ["bookings", { scope: "upcoming", page_size: 5 }],
-    queryFn: () => api("/bookings", { query: { scope: "upcoming", page_size: 5 } }),
+    queryKey: ["bookings", { scope: "upcoming", page_size: 100 }],
+    queryFn: () => api("/bookings", { query: { scope: "upcoming", page_size: 100 } }),
   });
 
-  const next = upcoming.data?.items.find((booking) => booking.status === "CONFIRMED") ?? upcoming.data?.items[0];
+  const bookings = upcoming.data?.items ?? [];
+  const confirmed = bookings.filter((booking) => booking.status === "CONFIRMED"); // soonest first
+  const awaitingPayment = bookings.filter((booking) => booking.status === "PENDING");
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       <h1 className="text-3xl font-bold tracking-tight text-slate-900">Welcome back, {user.name.split(" ")[0]}!</h1>
       <p className="mt-1 text-slate-500">{user.department ? `Department: ${user.department.name}` : "Pick a webinar to get started."}</p>
 
-      <div className="mt-8">
-        <Card>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Upcoming webinar</h2>
-          {upcoming.isPending ? (
-            <PageSpinner />
-          ) : next ? (
-            <div className="mt-3">
-              <p className="text-xl font-semibold text-slate-900">{next.webinar.title}</p>
-              <p className="mt-1 text-slate-600">
-                {formatDate(next.slot.start_at)} · {formatTimeRange(next.slot.start_at, next.slot.end_at)}
-              </p>
-              <div className="mt-5">
-                <SessionCountdown start={next.slot.start_at} end={next.slot.end_at} />
-              </div>
-              <div className="mt-4 flex items-center gap-2 text-sm">
-                <StatusBadge status={next.status} />
-                {next.status === "PENDING" && <span className="text-amber-700">Payment pending — your seat is held briefly.</span>}
-              </div>
-              <Button className="mt-5" variant="secondary" to={`/bookings/${next.id}`}>
-                {next.status === "PENDING" ? "Complete payment" : "View booking"}
-              </Button>
-            </div>
-          ) : (
-            <p className="mt-3 text-slate-600">You have no upcoming webinars yet.</p>
-          )}
-        </Card>
-      </div>
-
-      <section className="mt-10">
-        <h2 className="text-lg font-semibold">Your upcoming bookings</h2>
-        <div className="mt-4 space-y-3">
-          {upcoming.data?.items.length ? (
-            upcoming.data.items.map((booking) => <BookingSummary key={booking.id} booking={booking} />)
-          ) : (
-            !upcoming.isPending && (
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold">
+          Your upcoming webinars
+          {confirmed.length > 0 && <span className="ml-2 text-sm font-normal text-slate-500">({confirmed.length})</span>}
+        </h2>
+        {upcoming.isPending ? (
+          <PageSpinner />
+        ) : confirmed.length ? (
+          <div className="mt-4 grid gap-6 lg:grid-cols-2">
+            {confirmed.map((booking) => (
+              <ConfirmedWebinar key={booking.id} booking={booking} />
+            ))}
+          </div>
+        ) : (
+          !awaitingPayment.length && (
+            <div className="mt-4">
               <EmptyState
                 title="Nothing booked yet"
                 description="Pick a course, choose your own date and time, and set your webinar."
                 action={<Button to="/webinars">Set a webinar</Button>}
               />
-            )
-          )}
-        </div>
+            </div>
+          )
+        )}
+        {!upcoming.isPending && !confirmed.length && awaitingPayment.length > 0 && (
+          <p className="mt-3 text-slate-600">No confirmed webinars yet — complete the payment below to confirm your seat.</p>
+        )}
       </section>
+
+      {awaitingPayment.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold">Awaiting payment</h2>
+          <p className="mt-1 text-sm text-slate-500">Your seat is held while you pay. Open a booking to complete payment.</p>
+          <div className="mt-4 space-y-3">
+            {awaitingPayment.map((booking) => (
+              <BookingSummary key={booking.id} booking={booking} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
