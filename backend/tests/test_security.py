@@ -26,6 +26,7 @@ PUBLIC_ROUTES = {
     ("GET", "/webinars/{webinar_id}"),
     ("GET", "/webinars/{webinar_id}/slots"),
     ("POST", "/payments/webhook"),  # authenticated by Razorpay's signature instead
+    ("POST", "/internal/tick"),  # runs the jobs at most once a minute, whoever calls it
 }
 
 

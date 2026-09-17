@@ -35,3 +35,26 @@ export function useQueryParams() {
 
   return [values, update];
 }
+
+const HEARTBEAT_MS = 2 * 60_000;
+
+/**
+ * While the site is open, ping the API so its background jobs (seat-hold release, reminders,
+ * email/SMS delivery) keep running on hosts without a scheduler. The server runs them at most
+ * once a minute however many visitors ping; failures are ignored.
+ */
+export function useJobsHeartbeat(apiUrl) {
+  useEffect(() => {
+    const ping = () => {
+      if (document.visibilityState !== "visible") return;
+      fetch(new URL(`${apiUrl}/internal/tick`, window.location.origin), { method: "POST", keepalive: true }).catch(() => {});
+    };
+    ping();
+    const id = setInterval(ping, HEARTBEAT_MS);
+    document.addEventListener("visibilitychange", ping);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", ping);
+    };
+  }, [apiUrl]);
+}

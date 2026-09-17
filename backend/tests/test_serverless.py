@@ -86,3 +86,41 @@ def test_vercel_requirements_match_the_backend_requirements() -> None:
         return [line for line in lines if line]
 
     assert packages(root_file) == packages(backend_dir / "requirements.txt")
+
+
+def test_claim_window_allows_one_caller_per_minute() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import delete
+
+    from app.database import engine
+    from app.models import RateLimitCounter
+    from app.services.rate_limit import claim_window
+
+    scope = "test:claim-window"
+    minute = datetime(2026, 9, 17, 10, 0, 5, tzinfo=UTC)
+    try:
+        assert claim_window(scope, timedelta(minutes=1), now=minute) is True
+        assert claim_window(scope, timedelta(minutes=1), now=minute + timedelta(seconds=40)) is False
+        assert claim_window(scope, timedelta(minutes=1), now=minute + timedelta(minutes=1)) is True
+    finally:
+        with engine.begin() as connection:  # counters are committed outside the test transaction
+            connection.execute(delete(RateLimitCounter).where(RateLimitCounter.key == scope))
+
+
+def test_tick_runs_the_jobs_only_when_enabled_and_this_minute_is_unclaimed(client: TestClient, monkeypatch) -> None:
+    from app.services import rate_limit
+
+    calls = []
+    monkeypatch.setattr(jobs, "run_due_jobs", lambda: calls.append(1) or {"send_reminders": "ok"})
+    claims = iter([True, False])
+    monkeypatch.setattr(rate_limit, "claim_window", lambda scope, window: next(claims))
+
+    monkeypatch.setattr(get_settings(), "jobs_tick_enabled", False)
+    assert client.post("/internal/tick").json() == {"ran": False}
+    assert calls == []
+
+    monkeypatch.setattr(get_settings(), "jobs_tick_enabled", True)
+    assert client.post("/internal/tick").json() == {"ran": True, "jobs": {"send_reminders": "ok"}}
+    assert client.post("/internal/tick").json() == {"ran": False}
+    assert calls == [1]

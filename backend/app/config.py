@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     # Bearer token for GET/POST /internal/run-jobs, which runs the background jobs on hosts without the
     # scheduler process (Vercel Cron sends it automatically as CRON_SECRET). Empty disables the endpoint.
     cron_secret: str = ""
+    # POST /internal/tick (no secret) runs the jobs at most once a minute when visitors' browsers ping it —
+    # keeps holds, reminders and emails moving on hosts without a scheduler process. Off where the scheduler runs.
+    jobs_tick_enabled: bool = False
 
     @field_validator("database_url")
     @classmethod

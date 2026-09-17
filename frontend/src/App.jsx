@@ -3,6 +3,8 @@ import { Route, Routes } from "react-router";
 import RequireAuth from "./auth/RequireAuth.jsx";
 import AdminLayout from "./components/AdminLayout.jsx";
 import Layout from "./components/Layout.jsx";
+import { API_URL } from "./lib/api.js";
+import { useJobsHeartbeat } from "./lib/hooks.js";
 import AdminBookings from "./pages/admin/AdminBookings.jsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
 import AdminDepartments from "./pages/admin/AdminDepartments.jsx";
@@ -30,6 +32,8 @@ import WebinarDetail from "./pages/WebinarDetail.jsx";
 import Webinars from "./pages/Webinars.jsx";
 
 export default function App() {
+  useJobsHeartbeat(API_URL);
+
   return (
     <Routes>
       <Route element={<Layout />}>

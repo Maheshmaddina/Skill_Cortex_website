@@ -65,11 +65,22 @@ def hit(limit: Limit, identifier: str, *, now: datetime | None = None) -> None:
     if not get_settings().rate_limit_enabled:
         return
     now = now or datetime.now(UTC)
-    window_seconds = int(limit.window.total_seconds())
-    window_start = datetime.fromtimestamp(int(now.timestamp()) // window_seconds * window_seconds, UTC)
-    window_end = window_start + limit.window
     key = f"{limit.scope}:{hashlib.sha256(identifier.encode()).hexdigest()[:40]}"
+    count, window_end = _increment(key, limit.window, now)
+    if count > limit.max_hits:
+        raise RateLimited(max(1, math.ceil((window_end - now).total_seconds())))
 
+
+def claim_window(scope: str, window: timedelta, *, now: datetime | None = None) -> bool:
+    """True for exactly one caller per time window, across all API workers (a cheap distributed "once a minute")."""
+    count, _ = _increment(scope, window, now or datetime.now(UTC))
+    return count == 1
+
+
+def _increment(key: str, window: timedelta, now: datetime) -> tuple[int, datetime]:
+    window_seconds = int(window.total_seconds())
+    window_start = datetime.fromtimestamp(int(now.timestamp()) // window_seconds * window_seconds, UTC)
+    window_end = window_start + window
     statement = (
         insert(RateLimitCounter)
         .values(key=key, window_start=window_start, count=1, expires_at=window_end)
@@ -80,10 +91,7 @@ def hit(limit: Limit, identifier: str, *, now: datetime | None = None) -> None:
         .returning(RateLimitCounter.count)
     )
     with engine.begin() as connection:
-        count = connection.execute(statement).scalar_one()
-
-    if count > limit.max_hits:
-        raise RateLimited(max(1, math.ceil((window_end - now).total_seconds())))
+        return connection.execute(statement).scalar_one(), window_end
 
 
 def purge_expired(now: datetime | None = None) -> int:
