@@ -138,6 +138,9 @@ def test_admin_confirms_the_upi_payment(
     assert response.json()["booking"]["status"] == "CONFIRMED"
     db.refresh(booking)
     assert (booking.status, booking.expires_at) == (BookingStatus.CONFIRMED, None)
+    receipt = client.get(f"/bookings/{booking.id}", headers=auth_header(learner)).json()["paid_payment"]
+    assert (receipt["method"], receipt["upi_reference"], receipt["amount_paise"]) == ("UPI", UTR, 99_900)
+    assert receipt["paid_at"] is not None
     assert notifier.dispatch_calls == 1
     confirmations = db.scalars(
         select(Notification).where(

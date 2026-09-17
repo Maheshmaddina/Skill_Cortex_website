@@ -62,7 +62,7 @@ export default function Layout() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur print:hidden">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <Logo />
           <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
@@ -101,7 +101,7 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      <footer className="bg-ink text-slate-300">
+      <footer className="bg-ink text-slate-300 print:hidden">
         <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 text-sm sm:grid-cols-2">
           <div>
             <Logo light />

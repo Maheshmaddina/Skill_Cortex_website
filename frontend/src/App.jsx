@@ -24,6 +24,7 @@ import NotFound from "./pages/NotFound.jsx";
 import Notifications from "./pages/Notifications.jsx";
 import Profile from "./pages/Profile.jsx";
 import Register from "./pages/Register.jsx";
+import Receipt from "./pages/Receipt.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
 import WebinarDetail from "./pages/WebinarDetail.jsx";
 import Webinars from "./pages/Webinars.jsx";
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="bookings" element={<MyBookings />} />
           <Route path="bookings/:bookingId" element={<BookingDetail />} />
+          <Route path="bookings/:bookingId/receipt" element={<Receipt />} />
           <Route path="notifications" element={<Notifications />} />
         </Route>
         <Route element={<RequireAuth />}>

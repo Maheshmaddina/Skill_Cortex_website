@@ -58,6 +58,11 @@ class Booking(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     payments: Mapped[list["Payment"]] = relationship(back_populates="booking")
 
     @property
+    def paid_payment(self) -> "Payment | None":
+        """The successful payment, for the receipt."""
+        return next((payment for payment in self.payments if payment.status == PaymentStatus.PAID), None)
+
+    @property
     def upi_payment(self) -> "Payment | None":
         """The direct-UPI payment attempt to show: the active one (pending or paid), else the latest."""
         upi = [payment for payment in self.payments if payment.method == PaymentMethod.UPI]

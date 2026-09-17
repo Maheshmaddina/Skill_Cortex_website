@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models import BookingStatus, PaymentStatus
+from app.models import BookingStatus, PaymentMethod, PaymentStatus
 
 
 class BookingCreate(BaseModel):
@@ -36,6 +36,19 @@ class BookingSlot(BaseModel):
     end_at: datetime
 
 
+class BookingPaidPayment(BaseModel):
+    """Receipt details of the successful payment."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    method: PaymentMethod
+    amount_paise: int
+    currency: str
+    paid_at: datetime | None
+    razorpay_payment_id: str | None
+    upi_reference: str | None
+
+
 class BookingUpiPayment(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -60,6 +73,7 @@ class BookingOut(BaseModel):
     webinar: BookingWebinar
     slot: BookingSlot
     upi_payment: BookingUpiPayment | None = None  # latest direct-UPI attempt, if any
+    paid_payment: BookingPaidPayment | None = None  # for the receipt
 
 
 class BookingUser(BaseModel):

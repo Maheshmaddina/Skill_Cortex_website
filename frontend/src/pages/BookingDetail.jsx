@@ -202,12 +202,9 @@ function BookingView({ booking, notice, pay, cancel, onExpired }) {
         </div>
       ) : null}
 
-      {booking.status === "CONFIRMED" && (
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Button to="/bookings">View My Bookings</Button>
-          <Button variant="secondary" to="/webinars">
-            Browse more webinars
-          </Button>
+      {["CONFIRMED", "COMPLETED"].includes(booking.status) && booking.paid_payment && (
+        <div className="mt-6">
+          <Button to={`/bookings/${booking.id}/receipt`}>View payment receipt</Button>
         </div>
       )}
     </Card>
